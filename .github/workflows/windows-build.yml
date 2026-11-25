@@ -1,0 +1,106 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'engine/**'
+      - 'settings-app/**'
+      - '.github/workflows/windows-build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'engine/**'
+      - 'settings-app/**'
+      - '.github/workflows/windows-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-x86_64:
+    name: Windows x86_64 MSVC build
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: settings-app/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            engine/target
+          key: cargo-windows-msvc-${{ hashFiles('engine/Cargo.lock') }}
+          restore-keys: |
+            cargo-windows-msvc-
+
+      - name: Test core engine crates
+        working-directory: engine
+        run: cargo test --locked --target x86_64-pc-windows-msvc -p hufu-config -p hufu-dict -p hufu-engine
+
+      - name: Build settings app
+        working-directory: settings-app
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build Windows binaries
+        working-directory: engine
+        run: cargo build --locked --release --target x86_64-pc-windows-msvc -p hufu-server -p hufu-render-helper
+
+      - name: Package build artifacts
+        run: |
+          $out = Join-Path (Get-Location).Path 'artifacts\hufu-windows-x86_64'
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          $files = @(
+            'engine\target\x86_64-pc-windows-msvc\release\hufu-server.exe',
+            'engine\target\x86_64-pc-windows-msvc\release\hufu-render-helper.exe'
+          )
+          foreach ($file in $files) {
+            if (-not (Test-Path $file) -or (Get-Item $file).Length -eq 0) {
+              throw "Missing or empty build artifact: $file"
+            }
+            Copy-Item $file $out -Force
+          }
+          Copy-Item 'settings-app\dist' (Join-Path $out 'settings-app') -Recurse -Force
+          $serverExe = Resolve-Path 'engine\target\x86_64-pc-windows-msvc\release\hufu-server.exe'
+          $indexText = [IO.File]::ReadAllText((Resolve-Path 'settings-app\dist\index.html'), [Text.Encoding]::UTF8)
+          $serverText = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($serverExe))
+          if (-not $serverText.Contains($indexText)) { throw 'hufu-server.exe does not embed the current settings app' }
+          $hashes = Get-ChildItem $out -Recurse -File |
+            Where-Object Name -ne 'SHA256SUMS.txt' |
+            Sort-Object FullName |
+            ForEach-Object { '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash, $_.FullName.Substring($out.Length + 1) }
+          $hashes | Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding ascii
+          Get-ChildItem $out -Recurse -File | Select-Object FullName, Length
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hufu-windows-x86_64-${{ github.sha }}
+          path: artifacts/hufu-windows-x86_64/
+          if-no-files-found: error
+          retention-days: 14
