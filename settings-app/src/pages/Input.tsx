@@ -46,6 +46,7 @@ interface InputDraft {
     enter_clear: boolean;
     tab_clear: boolean;
     mixed_input: boolean;
+    prefix_completion: boolean;
     ascii_punct: boolean;
     slash_dunhao: boolean;
     backslash_dunhao: boolean;
@@ -141,6 +142,7 @@ function normalize(cfg: Config): InputDraft {
       enter_clear: bool(i.enter_clear, false),
       tab_clear: bool(i.tab_clear, true),
       mixed_input: bool(i.mixed_input, false),
+      prefix_completion: bool(i.prefix_completion, false),
       ascii_punct: bool(i.ascii_punct, false),
       slash_dunhao: bool(i.slash_dunhao, false),
       backslash_dunhao: bool(i.backslash_dunhao, false),
@@ -1013,6 +1015,12 @@ export function InputPage({ data, notify }: { data: Bootstrap; notify: (msg: str
                 label="中英混输（保留大小写）"
                 on={draft.input.mixed_input}
                 onChange={(v) => patch('input', 'mixed_input', v)}
+              />
+              <ToggleRow
+                label="前缀补全"
+                hint="精确候选优先，追加以当前编码开头的更长编码候选。"
+                on={draft.input.prefix_completion}
+                onChange={(v) => patch('input', 'prefix_completion', v)}
               />
               <ToggleRow
                 label="中文态使用英文标点"

@@ -47,6 +47,95 @@ fn setup() -> (Engine, Session, std::path::PathBuf) {
     (engine, session, dir)
 }
 
+#[test]
+fn prefix_completion_toggle_preserves_exact_order_and_full_codes() {
+    let dir = std::env::temp_dir().join(format!("hufu-prefix-engine-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let dict_dir = dir.join("码表").join("虎码单字");
+    std::fs::create_dir_all(&dict_dir).unwrap();
+    std::fs::write(
+        dict_dir.join("main.txt"),
+        "#hufu-dict v1 name=prefix\n\
+         t\t我\t900\n\
+         t\t你\t450\n\
+         tja\t我\t999\n\
+         tub\t高频\t800\n\
+         tuja\t我们\t500\n\
+         tuc\t低频\t100\n",
+    )
+    .unwrap();
+    std::fs::write(dict_dir.join("用户调整.txt"), "{置顶}t\t你\n").unwrap();
+    std::fs::write(dict_dir.join("用户词.txt"), "tuz\t用户长码\n").unwrap();
+    std::fs::write(dict_dir.join("个人存储表.txt"), "tup\t隐私长码\n").unwrap();
+
+    let mut config = Config::default();
+    config.schema.current = "虎码单字".into();
+    config.candidates.page_size = 3;
+    let mut engine = Engine::new(&dir, config).unwrap();
+    assert!(engine.schema.user_dict.entries.iter().any(|e| e.code == "tuz"));
+    assert!(engine.schema.personal.entries.iter().any(|e| e.code == "tup"));
+    fn pairs(session: &Session) -> Vec<(&str, &str)> {
+        session
+            .candidates
+            .iter()
+            .map(|c| (c.code.as_str(), c.text.as_str()))
+            .collect()
+    }
+
+    assert!(!engine.config.input.prefix_completion);
+    let mut session = Session::new(true);
+    engine.process_key(&mut session, key('t'));
+    assert_eq!(pairs(&session), vec![("t", "你"), ("t", "我")]);
+    session.clear();
+    engine.process_key(&mut session, key('t'));
+    engine.process_key(&mut session, key('u'));
+    assert!(session.candidates.is_empty());
+
+    engine.config.input.prefix_completion = true;
+    session.clear();
+    engine.process_key(&mut session, key('t'));
+    assert_eq!(
+        pairs(&session),
+        vec![
+            ("t", "你"),
+            ("t", "我"),
+            ("tub", "高频"),
+            ("tuja", "我们"),
+        ]
+    );
+
+    engine.config.sentence.auto_enable = false;
+    engine.set_sentence_decoder(Some(Arc::new(MockDecoder)));
+    session.clear();
+    engine.process_key(&mut session, key('t'));
+    let exact_pos = pairs(&session)
+        .iter()
+        .position(|(code, _)| *code == "t")
+        .unwrap();
+    let completion_idx = pairs(&session)
+        .iter()
+        .position(|(_, text)| *text == "高频")
+        .unwrap();
+    assert!(completion_idx > exact_pos);
+    let select_key = char::from_digit((completion_idx + 1) as u32, 10).unwrap();
+    let out = engine.process_key(&mut session, key(select_key));
+    assert_eq!(out.commit.as_deref(), Some("高频"));
+
+    engine.config.candidates.page_size = 0;
+    session.clear();
+    engine.process_key(&mut session, key('t'));
+    engine.process_key(&mut session, key('u'));
+    assert_eq!(pairs(&session), vec![("tub", "高频")]);
+
+    engine.config.input.prefix_completion = false;
+    engine.set_sentence_decoder(None);
+    session.clear();
+    engine.process_key(&mut session, key('t'));
+    engine.process_key(&mut session, key('u'));
+    assert!(session.candidates.is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// 模拟整句解码器。
 struct MockDecoder;
 impl SentenceDecoder for MockDecoder {

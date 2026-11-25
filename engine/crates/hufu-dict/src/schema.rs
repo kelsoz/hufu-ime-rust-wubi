@@ -2,11 +2,12 @@
 
 use crate::annotation::{AnnotationTable, ReverseTable};
 use crate::dict::Dict;
-use crate::entry::DictEntry;
+use crate::entry::{rank_cmp, DictEntry};
 use crate::parse::{self, parse_file};
 use crate::supplement::Supplement;
 use crate::symbols::SymbolTables;
 use crate::user::{UserAdjust, UserDict};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// 一个输入方案：主码表 + 符号 + 注释 + 反查 + 用户数据 + 构词规则。
@@ -698,6 +699,34 @@ impl Schema {
         out
     }
 
+    /// 前缀补全候选：只取主码表中严格更长且以 `prefix` 开头的条目。
+    /// 同词保留 rank 最优编码，再按权重降序、原序升序排序并截断（至少 1 条）。
+    pub fn prefix_completions(&self, prefix: &str, limit: usize) -> Vec<DictEntry> {
+        if prefix.is_empty() {
+            return Vec::new();
+        }
+        let limit = limit.max(1);
+        let mut best: HashMap<&str, &DictEntry> = HashMap::new();
+        for e in &self.dict.entries {
+            if e.code.len() <= prefix.len()
+                || !e.code.starts_with(prefix)
+                || self.adjust.removed(&e.code, &e.text)
+            {
+                continue;
+            }
+            if best
+                .get(e.text.as_str())
+                .map_or(true, |current| rank_cmp(e, current).is_lt())
+            {
+                best.insert(e.text.as_str(), e);
+            }
+        }
+        let mut out: Vec<DictEntry> = best.into_values().cloned().collect();
+        out.sort_by(rank_cmp);
+        out.truncate(limit);
+        out
+    }
+
     /// 【个人存储表 2026-10-16】(码, 词) 是否来自个人存储表——引擎侧
     /// 打 Personal 源标记（候选保护）与导出过滤的共用判据。个人表
     /// 通常极小（几十条），查询零负担。
@@ -851,6 +880,102 @@ mod tests {
 
     fn write(dir: &Path, name: &str, content: &str) {
         std::fs::write(dir.join(name), content).unwrap();
+    }
+
+    fn prefix_schema(rows: &str, adjustments: &str) -> Schema {
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let dir = std::env::temp_dir().join(format!(
+            "hufu-prefix-schema-{}-{n}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        write(
+            &dir,
+            "main.txt",
+            &format!("#hufu-dict v1 name=prefix\n{rows}"),
+        );
+        if !adjustments.is_empty() {
+            write(&dir, "用户调整.txt", adjustments);
+        }
+        let schema = Schema::load(&dir).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        schema
+    }
+
+    #[test]
+    fn prefix_completions_require_strictly_longer_codes_and_sort_by_rank() {
+        let s = prefix_schema(
+            "a\t精确\t999\nab\t同权重先\t10\nabc\t高权重\t30\nabd\t同权重后\t10\nabx\t低权重\t1\nb\t非前缀\t1000\n",
+            "",
+        );
+        let got: Vec<(String, String)> = s
+            .prefix_completions("a", 10)
+            .into_iter()
+            .map(|e| (e.code, e.text))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                ("abc".into(), "高权重".into()),
+                ("ab".into(), "同权重先".into()),
+                ("abd".into(), "同权重后".into()),
+                ("abx".into(), "低权重".into()),
+            ]
+        );
+        assert!(s.prefix_completions("", 10).is_empty());
+    }
+
+    #[test]
+    fn prefix_completions_dedup_text_keeps_best_rank_code() {
+        let s = prefix_schema(
+            "ab\t同词\t5\nabc\t同词\t50\nabd\t同词\t20\nabe\t异词\t100\n",
+            "",
+        );
+        let got: Vec<(String, String)> = s
+            .prefix_completions("a", 10)
+            .into_iter()
+            .map(|e| (e.code, e.text))
+            .collect();
+        assert_eq!(
+            got,
+            vec![("abe".into(), "异词".into()), ("abc".into(), "同词".into())]
+        );
+    }
+
+    #[test]
+    fn prefix_completions_filter_removed_before_text_dedup() {
+        let s = prefix_schema(
+            "abc\t同词\t100\nabd\t同词\t90\nabe\t独删\t80\nabf\t保留\t70\n",
+            "{删除}abc\t同词\n{删除}abe\t独删\n",
+        );
+        let got: Vec<(String, String)> = s
+            .prefix_completions("a", 10)
+            .into_iter()
+            .map(|e| (e.code, e.text))
+            .collect();
+        assert_eq!(
+            got,
+            vec![("abd".into(), "同词".into()), ("abf".into(), "保留".into())]
+        );
+    }
+
+    #[test]
+    fn prefix_completions_limit_keeps_top_ranked_texts() {
+        let s = prefix_schema("ab\t低\t10\nabc\t中\t20\nabcd\t高\t30\n", "");
+        let got: Vec<String> = s
+            .prefix_completions("a", 2)
+            .into_iter()
+            .map(|e| e.text)
+            .collect();
+        assert_eq!(got, vec!["高", "中"]);
+        let min_one: Vec<String> = s
+            .prefix_completions("a", 0)
+            .into_iter()
+            .map(|e| e.text)
+            .collect();
+        assert_eq!(min_one, vec!["高"]);
     }
 
     #[test]

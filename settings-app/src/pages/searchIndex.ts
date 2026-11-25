@@ -39,6 +39,7 @@ export const SEARCH_ITEMS: SearchItem[] = [
   { title: '空码自动清屏', desc: '满码 +1 键仍无解时清前码', route: 'input', group: '编码', icon: 'keyboard', keys: '空码 清屏 无解 前码 输入', sub: 'input' },
   { title: '回车清屏', desc: '回车清空当前编码', route: 'input', group: '编码', icon: 'keyboard', keys: '回车 enter 清屏 清空', sub: 'input' },
   { title: '中英混输', desc: '中文编码里保留英文字母大小写', route: 'input', group: '编码', icon: 'keyboard', keys: '中英 混输 中英混输（保留大小写） 英文 大小写 保留', sub: 'input' },
+  { title: '前缀补全', desc: '精确候选后追加更长同前缀编码候选', route: 'input', group: '编码', icon: 'keyboard', keys: '前缀 补全 联想 候选 长码 精确 优先', sub: 'input' },
   { title: '中文态使用英文标点', desc: '中文态也输出英文标点', route: 'input', group: '编码', icon: 'keyboard', keys: '中文 英文 标点 全角 半角 符号', sub: 'input' },
   { title: '斜杠键顿号直出', desc: '斜杠输出顿号 / 命名空间', route: 'input', group: '编码', icon: 'keyboard', keys: '斜杠 顿号 直出 /=顿号直出 命名空间', sub: 'input' },
   { title: '反斜杠键顿号直出', desc: '反斜杠输出顿号 / 命名空间', route: 'input', group: '编码', icon: 'keyboard', keys: '反斜杠 顿号 直出 \=顿号直出 命名空间', sub: 'input' },

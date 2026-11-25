@@ -207,6 +207,8 @@ pub struct InputSection {
     pub code_disguise: String,
     /// 候选窗显示编码
     pub show_code: bool,
+    /// 前缀补全：精确候选保持原序，追加严格更长的同前缀码表候选
+    pub prefix_completion: bool,
     /// 隐藏候选窗（盲打）
     pub hide_candidates: bool,
     /// 默认中文
@@ -260,6 +262,7 @@ impl Default for InputSection {
             mixed_input: false,
             code_disguise: String::new(),
             show_code: true,
+            prefix_completion: false,
             hide_candidates: false,
             default_chinese: true,
             ascii_punct: false,
@@ -918,6 +921,18 @@ mod tests {
         // 【重复上屏包括符号 2026-11】默认关：旧配置无此键 → 只记文字
         // 口径（2026-10-30 三修行为），老用户升级手感不变
         assert_eq!(cfg2.general.repeat_include_symbols, false);
+    }
+
+    #[test]
+    fn prefix_completion_defaults_off_and_legacy_load() {
+        assert!(!Config::default().input.prefix_completion);
+
+        let legacy: Config = serde_json::from_str(r#"{ "input": { "max_code_length": 4 } }"#)
+            .unwrap();
+        assert!(!legacy.input.prefix_completion);
+        let enabled: Config =
+            serde_json::from_str(r#"{ "input": { "prefix_completion": true } }"#).unwrap();
+        assert!(enabled.input.prefix_completion);
     }
 
     /// 【重复上屏包括符号 2026-11】开关序列化往返 + 旧配置缺键取默认关。

@@ -2731,6 +2731,19 @@ impl Engine {
                     }
                 },
             };
+            if self.config.input.prefix_completion && session.page == 0 {
+                let abs_idx = disp_rank - 1;
+                let is_completion = session.candidates.get(abs_idx).is_some_and(|cand| {
+                    cand.source == CandidateKind::Dict
+                        && cand.code != session.raw
+                        && cand.code.starts_with(&session.raw)
+                });
+                if is_completion {
+                    let no_learn = c == self.config.candidates.second_select
+                        || c == self.config.candidates.third_select;
+                    return self.select_candidate_ex(session, abs_idx, true, no_learn);
+                }
+            }
             let base_now = self.parse_locks(&session.raw).base;
             // 【R26 补全·整句翻页后页基准 2026-10-11 用户实锤】整句态
             // 数字/选重此前恒取 schema.candidates(chunk)[disp_rank-1]——
@@ -4971,6 +4984,12 @@ impl Engine {
     /// emoji 一条独立候选**依次追加（1选「手机」2选「📱」3选「📲」
     /// 4选「📱」——表内顺序与重复都保留）。
     fn apply_opencc(&mut self, session: &mut Session) {
+        let mut candidates = std::mem::take(&mut session.candidates);
+        self.apply_opencc_candidates(&mut candidates);
+        session.candidates = candidates;
+    }
+
+    fn apply_opencc_candidates(&mut self, candidates: &mut Vec<Candidate>) {
         // 【性能 2026-10-26 审计】先判开关再 clone——两开关都关（默认态）
         // 不再白付一次配置结构克隆。
         if !self.config.opencc.enabled && !self.config.opencc.emoji {
@@ -5009,7 +5028,7 @@ impl Engine {
         }
         // base 在繁简转换**之前**快照（emoji 表是简体键——转换后再查
         // 会查空），与旧序一致。
-        let base: Vec<Candidate> = session.candidates.iter().take(3).cloned().collect();
+        let base: Vec<Candidate> = candidates.iter().take(3).cloned().collect();
         // 【2026-09-05 定稿】简→繁=替换式（Rime simplifier 语义，用户拍板）：
         // 直接转换候选文本，显示与上屏都是繁体——「打简出繁」；候选顺序
         // 不动：无简繁之分的字（中/你）保持原样原位（「中」仍是首选
@@ -5027,8 +5046,8 @@ impl Engine {
                 // 是收敛方向（多繁归一见词表），不做一变多展开。
                 let expand_variants = cfg.to_traditional;
                 // 重建而非原地改：展开是一变多，iter_mut 装不下。
-                let mut out: Vec<Candidate> = Vec::with_capacity(session.candidates.len() + 4);
-                for cand in session.candidates.iter() {
+                let mut out: Vec<Candidate> = Vec::with_capacity(candidates.len() + 4);
+                for cand in candidates.iter() {
                     // 【功能词豁免 2026-11】{繁简}/{撤回}/{加词} 等功能词
                     // 不做繁简转换：转换后 tag 变形（{繁简}→{繁簡}），
                     // 提交解析 tag=="繁简" 判否 → 繁体态下开关再也切不回
@@ -5062,7 +5081,7 @@ impl Engine {
                     }
                     out.push(c);
                 }
-                session.candidates = out;
+                *candidates = out;
             }
         }
         let mut variants: Vec<Candidate> = Vec::new();
@@ -5086,7 +5105,7 @@ impl Engine {
                 }
             }
         }
-        session.candidates.append(&mut variants);
+        candidates.append(&mut variants);
     }
 
     /// 【缺表静默 2026-11】转换词典目录缺该方向的表（精简安装/发行包只
@@ -5748,10 +5767,30 @@ impl Engine {
             }
         }
 
-        // 常规：精确码候选 + 整句短语合并
+        // 常规：精确码候选 + 可选前缀补全 + 整句短语合并
         // （Rime 菜单合并语义：ngram 多字首选短语压生僻表项置前，
         //   mlwe → 两次 先于 𠓅/𰧓，与 Rime 实测同拍；其余句子候选去重补后）
         let entries = self.schema.candidates(&session.raw);
+        let prefix_completion_domain = session.mode == InputMode::Normal
+            && !session.raw.starts_with(';')
+            && !session.raw.starts_with('/')
+            && !session.raw.starts_with('\\')
+            && !session.raw.starts_with('`')
+            && !(session.raw.starts_with('z') && self.schema.dict.z_symbol_domain);
+        let prefix_completions = if self.config.input.prefix_completion
+            && prefix_completion_domain
+            && !session.raw.is_empty()
+            && !parsed.has_locks()
+            && !sentence_mode
+            && raw_len <= self.config.input.max_code_length
+        {
+            self.schema.prefix_completions(
+                &session.raw,
+                self.config.candidates.page_size.max(1),
+            )
+        } else {
+            Vec::new()
+        };
         if !entries.is_empty() {
             // 【中间态候选 2026-09-03】录入中途且码表精确候选被生僻字
             // 霸屏时（打「它存」到 wvn：码表只有 徴/𡦺）：early 前缀态
@@ -5996,6 +6035,29 @@ impl Engine {
                 session.candidates = pinned_c;
                 session.candidates.extend(boosted);
             }
+            if !prefix_completions.is_empty() {
+                let mut extra: Vec<Candidate> = prefix_completions
+                    .iter()
+                    .filter(|e| {
+                        !session
+                            .candidates
+                            .iter()
+                            .any(|candidate| candidate.text == e.text)
+                    })
+                    .map(|e| self.entry_to_candidate(e))
+                    .collect();
+                self.apply_opencc_candidates(&mut extra);
+                session.candidates.extend(extra);
+            }
+            return;
+        }
+        if !prefix_completions.is_empty() {
+            let mut cands: Vec<Candidate> = prefix_completions
+                .iter()
+                .map(|e| self.entry_to_candidate(e))
+                .collect();
+            self.apply_opencc_candidates(&mut cands);
+            session.candidates = cands;
             return;
         }
         // 词表无此码（如 nqbh 真好）：整句解码器现切（Rime lua_translator 同源行为，

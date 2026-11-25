@@ -312,6 +312,7 @@ textarea.wide { width: 100%; min-height: 130px; font-family: Consolas, monospace
         <option value="nav">选重导航<span class="sub">（高亮下一候选，空格上屏）</span></option>
       </select></div>
       <div class="checkline"><input type="checkbox" id="i-mixed"><label for="i-mixed">中英混输（保留大小写）</label></div>
+      <div class="checkline"><input type="checkbox" id="i-prefix"><label for="i-prefix">前缀补全<span class="sub">（默认关；精确候选优先，追加更长前缀编码候选）</span></label></div>
       <div class="checkline"><input type="checkbox" id="i-ascii-p"><label for="i-ascii-p">中文态英文标点</label></div>
       <div class="checkline"><input type="checkbox" id="i-dunhao"><label for="i-dunhao">/=顿时直出，屏蔽码表内/相关内容</label></div>
       <div class="checkline"><input type="checkbox" id="i-bdunhao"><label for="i-bdunhao" title="勾选：空态按 \ 直接上屏「、」；不勾（默认）：打 \ 弹「、」候选，空格确认">\=顿号直出</label></div>
@@ -910,6 +911,7 @@ function bindInputs() {
   $("#g-caps").onchange = e => { CFG.general.caps_action = { clear: "Clear", switch: "Switch", none: "None", caps: "Caps" }[e.target.value]; autoSave(e.target); };
   B("#i-push", "input.auto_push"); B("#i-uniq", "input.auto_select_unique"); B("#i-clear", "input.auto_clear_empty");
   B("#i-enter", "input.enter_clear"); B("#i-mixed", "input.mixed_input");
+  B("#i-prefix", "input.prefix_completion");
   B("#i-ascii-p", "input.ascii_punct"); B("#i-dunhao", "input.slash_dunhao"); B("#i-bdunhao", "input.backslash_dunhao");
   // 【编码通配符 2026-10-11】开关+通配字符。字符侧校验：单字符、
   // 不在编码字母表、不与反查引导键/次选三选/翻页键冲突（引擎侧
