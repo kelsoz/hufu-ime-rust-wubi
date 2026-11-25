@@ -143,7 +143,7 @@ hufu-engine Engine::process_key(&mut Session, KeyInput)
 
 ## 9. 设置子系统（settings-app + hufu-server）
 
-- daemon 监听 `127.0.0.1:动态端口`（端口写入用户目录文件），提供：
+- daemon 首选监听 `127.0.0.1:4390`；端口被占用时按 `17890`、`17891` 等固定候选回退，并把实际端口写入 `%LOCALAPPDATA%\HuFu\http_port.txt`。Windows 数据目录默认可执行文件同目录下的 `数据`，也可用 `HUFU_DATA` / `--data` 覆盖。提供：
   - `GET /next` 当前设置页与 `/assets/*` 静态资源；Windows `hufu-settings.exe` 使用 Win32
     WebView2 外壳访问 `/next?shell=1`，内嵌的是 `settings-app/dist` 构建产物。
   - `GET /` 保留旧 `settings-ui` 设置页。
@@ -158,3 +158,14 @@ hufu-engine Engine::process_key(&mut Session, KeyInput)
 - IPC 仅本机（命名管道 ACL 当前用户；socket 文件 0600）。
 - 设置页仅监听 loopback，绑定时检查 Referer/Origin 防 CSRF。
 - 无遥测；模型与大文件留在用户数据目录。
+
+## 11. Wubi86 衍生版增量
+
+本仓库在上游 `v1.9.9.9` / `d438807` 上只增加以下增量，未重写平台前端：
+
+- **前缀补全**：`input.prefix_completion` 默认关闭。开启后，普通单码路径保留精确候选原序，再追加主码表中编码严格更长且同前缀的候选；追加部分按权重降序、原序升序，过滤软删并按文本去重。实现见 `hufu-dict::Schema::prefix_completions` 与 `hufu-engine` 候选合并路径。
+- **候选编码注释**：`candidates.show_code_comment` 与 `show_pinyin_comment` 在 UI 中构成“关闭 / 拼音 / 五笔”三选一。五笔模式显示单字和词语完整编码；整句模式仍抑制注释。
+- **设置页**：React 当前设置页与旧 `settings-ui` 同步提供开关和三选一控件。
+- **Windows 构建**：`.github/workflows/windows-build.yml` 验证核心 crate、构建设置页并嵌入服务端，上传服务端、渲染助手与 SHA256 清单；不覆盖 TSF DLL 或完整安装包。
+
+衍生版的来源、当前运行态、部署与排障入口见 [`AI_HANDOFF.md`](AI_HANDOFF.md)。

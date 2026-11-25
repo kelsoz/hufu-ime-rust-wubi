@@ -528,7 +528,7 @@ export function Overview({
               </section>
             </div>
             <div className="help-foot">
-              <span>更多细节见 <code>hufu/docs/设置窗口验收报告.md</code></span>
+              <span>更多细节见 <code>hufu/docs/README.md</code></span>
               <button type="button" className="btn primary" onClick={() => setHelpOpen(false)}>知道了</button>
             </div>
           </div>

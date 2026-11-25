@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-语料准备脚本：把下载的中文语料整理成「整句录入准确率测试」用的 1 万句测试集。
+语料准备脚本：把下载的中文语料整理成「整句录入准确率测试」用的 5 万句测试集。
 - 切句：按句末标点（。！？…；换行）切分
 - 清洗：只保留汉字（去掉英文/数字/URL/表情/标点/空白）
 - 过滤：每句 4~30 个汉字（整句虎 4 码以上取首选的合理区间）
 - 去重
 - 混合抽样：LCSTS / THUCNews / 评论 三类按比例随机抽，固定随机种子可复现
 输出：
-  corpus/test_sentences.txt            每行一句（纯汉字），共 10000 句
-  corpus/test_sentences_with_source.txt 每行：来源<TAB>句子
-  corpus/语料统计.txt                   各来源抽取量与长度分布
+  test_sentences_50k.txt            每行一句（纯汉字），最多 50000 句
+  test_sentences_50k_with_source.txt 每行：来源<TAB>句子
+  语料统计_50k.txt                  各来源抽取量与长度分布
 """
 import csv
 import json

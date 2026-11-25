@@ -57,6 +57,7 @@
 - 本仓库不提供独立安装包、整句模型或个人 Wubi86 码表。
 - 源码构建和 Windows 注册见 [`docs/build.md`](docs/build.md)。
 - 完整功能说明见 [`docs/features.md`](docs/features.md)。
+- 文档导航见 [`docs/README.md`](docs/README.md)；其他 AI 接手请看 [`docs/AI_HANDOFF.md`](docs/AI_HANDOFF.md)。
 - 上游的安装包、模型与通用使用说明请访问[原项目](https://github.com/LeafHW/hufu-ime-rust)。
 
 ## 与上游的关系

@@ -1,11 +1,11 @@
 # 虎符设置（新）
 
 React 19 + TypeScript + Vite 的新设置窗口。**10 个页面全部接入真实数据**：概览、方案、输入、键位编辑、皮肤工作室、候选挂件、整句模型、数据与备份、云同步、关于。
-窗口壳已是 `hufu-settings.exe` 默认入口（`/next?shell=1`），旧设置页 `/` 保留作回滚。严格验收结果与已知差异见 `hufu/docs/设置窗口验收报告.md`。
+窗口壳已是 `hufu-settings.exe` 默认入口（`/next?shell=1`），旧设置页 `/` 保留作回滚。历史验收结果与已知差异见 `hufu/docs/设置窗口验收报告.md`；当前文档入口见 `hufu/docs/README.md`。
 
 ## 运行
 
-前置：`hufu-server` 在 `127.0.0.1:4390` 运行（本机输入法常驻即可）。
+前置：`hufu-server` 在 `127.0.0.1:4390` 运行；端口被占用时读取 `%LOCALAPPDATA%\HuFu\http_port.txt` 获取实际端口。
 
 ```bash
 cd hufu/settings-app
@@ -50,7 +50,7 @@ npm run build      # dist/
 ## 已知差异 / 未覆盖
 
 严格验收未通过项（多显示器混合 DPI、Snap Layouts、旧页个别控件、动图挂件预览、完整发行包等）逐条列在
-`hufu/docs/设置窗口验收报告.md` 第 5 节；不要把本 README 当作“旧页 100% 等价”的声明。`.ssf` 完整可视化编辑与实时 SSE/rev 仍属后续。
+`hufu/docs/设置窗口验收报告.md` 第 5 节；这是历史验收记录，不要把本 README 当作“旧页 100% 等价”的声明。`.ssf` 完整可视化编辑与实时 SSE/rev 仍属后续。
 
 ## 结构
 
@@ -65,8 +65,8 @@ public/hufu-icon-q-256.png  Windows 安装器 Q 虎头
 
 ## 设计依据
 
-- 方案：`hufu/docs/设置窗口重设计.md`
-- 视觉稿 / 无构建 demo：`hufu/docs/design/`
+- 历史方案：`hufu/docs/设置窗口重设计.md`
+- 历史视觉稿 / 无构建 demo：`hufu/docs/design/`
 - 视觉方向 A；图标 Q 版虎头；云同步合符 = Q 虎头一分为二 + 错金缝。
 
 ## 在 WebView2 壳里跑
@@ -74,7 +74,7 @@ public/hufu-icon-q-256.png  Windows 安装器 Q 虎头
 壳在 `hufu/platform/windows/hufu-settings`（P0 已跑通，x86_64-pc-windows-gnu，无 MSVC/WinRT）：
 
 ```powershell
-cd E:\DSH-KF\hufu\platform\windows\hufu-settings
+cd platform/windows/hufu-settings
 cargo build --release --target x86_64-pc-windows-gnu
 .\run.ps1          # 默认 /next（server 已部署）
 .\run-dev.ps1      # 仅前端 HMR 开发：自动确保 Vite 在 5173

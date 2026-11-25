@@ -1,42 +1,94 @@
-# 虎符 HuFu · 当前进度与测试
+# 虎符 HuFu · Wubi86 衍生版当前状态
 
-> 当前进度、模块状态与测试基准；随版本持续更新。
+> 更新日期：2026-11-25。本页只记录当前事实；历史评测、旧版本验收和方案稿保留在 Git 原路径或本地 `docs/archive/`，后者不纳入 Git。
 
-## 模块进度
+## 仓库与基线
 
-| 模块                     | 状态       | 实测                                                         |
-| ------------------------ | ---------- | ------------------------------------------------------------ |
-| `hufu-types`             | ✅          | —                                                            |
-| `hufu-dict`              | ✅          | 虎码单字 113k 条/272ms、虎码字词（import 闭包）246k 条/1.2s、QQ五笔 96k/114ms、多多 B 定制 33k/81ms；置顶/软删回放（最新在前、无重复、pinned 标记） |
-| `hufu-config`            | ✅          | —                                                            |
-| `hufu-engine`            | ✅          | 真实码表 REPL：顶屏（`tuj`+死端字母推字 𪚠）、`jd`+`;` 次选、注释/拼音/分区回显；动态变量 `\da`→真实日期、`\n12345`→一万二千三百四十五、`\N1234`→壹萬贰仟大写金额、**`\calc(1+2)*3`→上屏 9**（HTTP 在线实测）、**`\w就就`→构码 jj 入库**（Rime encoder fixture）；Ctrl+Shift+数字 置顶 / Ctrl+Delete 软删（日志落盘+回放）；音效标签 key/select/commit/page；OpenCC 繁体变体（真实 ST 表：来→來、那个→那個 ⚑繁 + emoji） |
-| `hufu-sentence`          | ✅          | 真实 TCSKNM02 224MB 模型加载 87ms；`tujatuja`→「我们我们」、`mfyto`→「大一点我是」；单次组句 0.4–2.8ms；提前上屏提案 |
-| `hufu-skin`              | ✅          | 19 颜色角色 + 材质模型；weasel 配色互导（含 0xAABBGGRR ↔ #RRGGBBAA） |
-| `hufu-cli`               | ✅          | check / convert / repl                                       |
-| `hufu-server` + 设置 GUI | ✅          | 20 REST 路由（+候选置顶/隐藏/音效试听/全量快照导出）+ `\\.\pipe\hufu-ime` 命名管道 + Unix socket（macOS）；pipeclient 全操作通过；40KB 单文件设置 UI（试用台/方案/整句权重 10 滑杆/皮肤编辑器实况预览/用户词+置顶隐藏/任意候选调整/音效开关+试听/繁简开关/快照导出/导入导出） |
-| Windows TSF              | ✅ 实机验证 | `hufu_tsf.dll`（纯 Rust + windows-rs 0.58）；**系统级激活实测**：Win+空格 第 4 项（虎图标）、汉字上屏、候选窗贴光标跟随、选区顺序正确；**应用矩阵**：记事本/浏览器/VSCode/QQ/DSH/Listary 全通过。注册九步一键化（install.ps1 + reg-fix.ps1）；DLL 轨迹日志 `%TEMP%\hufu-tsf-trace.log`。运行时铁律：EditSession 用 ASYNCDONTCARE、组段走 GetSelection→StartComposition、GetTextExt 即屏幕坐标 |
-| macOS IMK                | 🚧 开发中   | HuFuInputController（键码→Unix socket→组段/上屏）+ CandidatePanel（NSVisualEffectView 四材质）+ Info.plist + build.sh；帧协议与 Windows 管道一致；**IMK 骨架已落地，需在 Mac 上实机迭代；暂无安装包** |
-| Linux fcitx5             | ✅ 可用     | `platform/linux`：Rust staticlib（Unix socket 客户端 + C ABI）+ C++ 薄壳；候选/组段/上屏/**候选点击上屏**；fcitx5-configtool 设置页；**英文输入由 fcitx5 键盘布局提供**（引擎不带中英切换，Shift/Caps 不下发）；**状态栏「虎符」托盘菜单**（重载码表 / 打开方案文件夹 / 按键音效 / 引擎状态 / 候选窗显示预编辑，后者默认开、切换即时生效）；**字反查**（默认 `~`，取光标左侧汉字，两排显示拼音与虎码·拆分，数据取自随包资源）；install.sh 系统级装 addon + systemd user 服务 + **仓库 `assets/` 自带码表/资源装配**（注释/拆分/全拼反查/符号/音效 wav；含默认「虎整句」方案），装/卸按 `assets/MANIFEST` 台账校验、两个脚本都支持 `--dry-run`；**待实机 fcitx5 全量回归** |
+- 唯一工作目录：`F:\Agent_Workspace\02_projects\hufu-ime-rust-wubi`
+- 当前分支：`main`
+- 上游基线：`v1.9.9.9` / `d438807`
+- 本仓库远端：`origin` → `kelsoz/hufu-ime-rust-wubi`
+- 上游远端：`upstream` → `LeafHW/hufu-ime-rust`
+- 身份与许可：衍生仓库，沿用上游 GPL-3.0-or-later；不是上游官方发行版。
 
-## 测试
+## 本衍生版已落地的改动
 
-- 引擎 workspace：**95 测试 0 失败**（Linux/Windows 双端跑；1 个作者本机对照件默认 `#[ignore]`）（字典格式/引擎状态机/动态变量/数字转中文/置顶回放/整句/Shift 标点/音效标签/皮肤/配置/GGUF f16/GEMM/q8 对 llama.cpp F32 基准/wav 解析）
-- Linux 前端单测：hufu-fcitx5-client 13/13（mock socket：commit/update/回删/透传/断线直通；含 重载码表·打开方案文件夹·音效开关与读态 四个薄封装、字反查索引解析与三类降级）
-- Linux 冒烟：真实码表 server + Unix socket（ping/key/state/中英切换）+ HTTP 设置页 + 三方案装配（脚本 `_tmp/dev-data/smoke.py`）
-- Linux 回归电池：`cargo run -p hufu-cli --example socketbattery` **22/22**（协议帧/键流：候选·数字选重·`;` 次选·`'` 三选·退格·Esc·顶屏·空格上屏·`-/=` 翻页/方案列表与切换/音效开关/Shift·Caps 不切中英（Linux 策略）/focus·reset/HTTP）
-- 管道回归电池：lock 12/12、battery2 16/16、edge 17/17、flow 全过、设置生效性 7/7（皮肤热反映/横排/序号/延时/音效/调整日志）
-- Windows 冒烟：12 步 exit=0（COM 层 + msctf + 管道 + 候选窗 v2 四材质，横竖排各验一轮）
-- 重排端到端：`bwjdsk` → Qwen3 翻转 `[弱斗该,嫁𡀲]→[嫁𡀲,弱斗该]`，二次输入缓存即时生效
-- **万句基准（tbench v2）**：新语料 1 万句、整句虎规则逐字全码连打——准率 **99.50%**、提前上屏覆盖 ~40%、残留码长 3.5 键、触达 p50 ~6ms；各版本基准与口径见 [benchmark-latency-100.md](benchmark-latency-100.md) / [benchmark-qwen-vs-ngram.md](benchmark-qwen-vs-ngram.md)
+1. **Wubi86 前缀补全**
+   - 配置：`input.prefix_completion`，默认关闭。
+   - 精确候选保持原序，随后追加主码表中编码严格更长且同前缀的候选。
+   - 追加候选按权重降序、原序升序；同词保留最优编码，过滤软删并限量。
+   - 不混入用户词、个人存储表；反查、快符、通配符和整句锁路径不启用。
 
-## 整句 A/B 压测（5 万句语料）
+2. **候选注释三选一**
+   - 配置：`candidates.show_pinyin_comment` 与 `candidates.show_code_comment`。
+   - UI 为“关闭 / 拼音 / 五笔”，两者互斥；旧配置只开拼音时保持拼音。
+   - 五笔模式显示单字和词语的完整候选编码。
+   - 整句模式暂不显示拼音或五笔编码注释。
+
+3. **Windows 自动编译**
+   - 工作流：`.github/workflows/windows-build.yml`。
+   - 构建核心测试、React 设置页、`hufu-server.exe` 与 `hufu-render-helper.exe`。
+   - 校验设置页已嵌入服务端，并上传含 `SHA256SUMS.txt` 的构建产物。
+   - 该工作流**不构建 TSF DLL，也不生成完整安装包**。
+
+## 最近验证结果
+
+以下命令已在本机执行通过：
 
 ```powershell
-# 语料：prepare_corpus_50k.py 生成（LCCTS/THUCNews/评论 混配，4~30 字纯汉字句）
 cd engine
-cargo run --release -p hufu-rerank --bin sentence-bench -- `
-  <语料目录>\test_sentences_50k.txt --arm AB --sample 2000 --wa 8 --wb 2 `
-  --out ..\docs\benchmark-qwen-vs-ngram.md
+cargo test --locked --target x86_64-pc-windows-msvc -p hufu-config -p hufu-dict -p hufu-engine
+
+cd ..\settings-app
+npm ci
+npm run build
+
+cd ..\engine
+cargo build --locked --release --target x86_64-pc-windows-msvc -p hufu-server -p hufu-render-helper
 ```
 
-录入规则完全按整句虎：逐字全码连打（一简字取 2 码全码）、一句打完才空格；提前上屏前缀由引擎提交累计。A 臂 ngram 全量；B 臂 +Qwen 重排在停顿后空格前一次性介入（同生产路径）。输出 Wilson 95% CI、按句长分桶、打捞/拖累翻转统计。报告见 [benchmark-qwen-vs-ngram.md](benchmark-qwen-vs-ngram.md)。
+- 核心测试：206 通过、0 失败（含 doc tests）。
+- 设置页：TypeScript 与 Vite 构建通过；重新生成的 `settings-app/dist` 已核对。
+- `settings-app/dist` 有意纳入版本控制；修改 React 源码时须同时提交新 dist 与哈希资源。
+- 发布构建：MSVC x86_64 通过；本次有 3 个 dead-code 警告，不影响构建。
+- 产物检查：服务端包含当前 `settings-app/dist` 的 index、CSS、JS 与图标，并包含文档导航链接标记。
+- 浏览器验证：设置页“概览 → 帮助”已显示 `hufu/docs/README.md`，无 console error/warn。
+- 行为验证：`tj` 精确候选在前，长码补全候选可选；五笔注释显示完整编码。
+- GitHub Actions：Windows 工作流已添加并触发；最新结论以仓库 Actions 页面为准。
+
+## 本机运行态（2026-11-25 检查）
+
+- 安装目录：`C:\Users\kelso\AppData\Local\Programs\HuFu\`
+- 正在运行：`hufu-server.exe`
+- 已验证安装版 SHA-256：`D4602D8D5AFD7170F4B4C95027FA11ACE3719714FEE121E008D5545305BBDB8B`
+- 当前方案：`五笔`
+- 当前码表：`码表\五笔\wubi86_jidian.txt`（由用户提供的 Wubi86 极点码表转换，未纳入 Git）
+- 当前设置：`prefix_completion=true`、`show_code_comment=true`、`show_pinyin_comment=false`、每页 6 个候选。
+- TSF DLL 仍使用本机原有前端；本衍生版没有重新打包或替换 `hufu_tsf.dll`。
+- 当前 `engine\target` 产物是后续重构建结果，哈希可能与已安装文件不同；重新部署前必须重新备份、校验并实机验证。
+
+## 平台状态
+
+| 平台 | 状态 |
+| --- | --- |
+| Windows | 核心引擎、服务端与设置页已在本机验证；TSF 前端沿用上游实现。 |
+| Linux | 上游 fcitx5 最小集 CI 保留；本衍生版没有新增 Linux 专属改动。 |
+| macOS | 上游 IMK 开发骨架，未完成实机验证，也未发布安装包。 |
+
+## 当前主要未完成事项
+
+- 游戏宿主默认已改为“完全惰性，不挂 sink、不拆链、不子类化”，但游戏内打字与进一步自愈仍见 [`TODO-待修复与改进.md`](TODO-待修复与改进.md)。
+- Windows CI 尚未覆盖 TSF DLL 与完整安装包。
+- 仓库版本标记仍沿用上游 `version.txt` / `BUILD_TAG`，尚未建立衍生版独立发行号。
+- Wubi86 个人码表只存在于本机，是否随仓库分发需先确认许可与用户意愿。
+
+## 文档入口
+
+- 新接手 AI 必读：[`AI_HANDOFF.md`](AI_HANDOFF.md)
+- 构建与部署：[`build.md`](build.md)
+- 架构：[`architecture.md`](architecture.md)
+- 功能：[`features.md`](features.md)
+- 资源与许可：[`asset-sources.md`](asset-sources.md)
+- 码表格式：[`dictionary-formats.md`](dictionary-formats.md)
+- 游戏宿主当前策略：[`game-host.md`](game-host.md)
+- 历史材料：旧路径保留在 Git；本地 `docs/archive/` 不纳入提交。
