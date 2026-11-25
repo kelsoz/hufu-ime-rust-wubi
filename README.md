@@ -1,121 +1,64 @@
-<p align="center">
-  <img src="docs/design/hufu-icon-q-256.png" width="96" alt="虎符 HuFu">
-</p>
+# 虎符 HuFu · Wubi86 适配版
 
-<h1 align="center">虎符 HuFu</h1>
+本项目是基于 [LeafHW/hufu-ime-rust](https://github.com/LeafHW/hufu-ime-rust) 的衍生版本，不是上游官方发行版，也不是从零实现的输入法。
 
-<p align="center"><strong>以虎码为核心的跨平台中文输入法</strong></p>
+代码基线为上游 `v1.9.9.9`（commit [`d438807`](https://github.com/LeafHW/hufu-ime-rust/commit/d438807db679631451dd6b47fe6d610350aaa075)）。上游项目提供了 Rust 引擎、Windows TSF / Linux fcitx5 / macOS IMK 前端、图形设置页、皮肤、同步和整句模型等主体功能；本仓库只在其上补充五笔短码输入时的候选补全细节。
 
-<p align="center">
-  <a href="https://github.com/LeafHW/hufu-ime-rust/releases/latest"><img src="https://img.shields.io/github/v/release/LeafHW/hufu-ime-rust?label=release&amp;color=E7B75C" alt="Release"></a>
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS%20%28dev%29-2F2A22" alt="Platform">
-  <img src="https://img.shields.io/badge/license-GPL--3.0-E7B75C" alt="License">
-  <img src="https://img.shields.io/badge/rust-stable-orange" alt="Rust">
-</p>
+## 相对上游改了什么
 
-> **macOS 版正在开发中（预计 11 月 20 日前后上线）。** IMK 前端骨架已落地（[`platform/macos`](platform/macos/README.md)），尚未发布安装包；Windows 版可直接安装使用。
+| 范围 | 本仓库的改动 |
+| --- | --- |
+| 配置 | 新增 `input.prefix_completion`，默认关闭；旧配置缺少该字段时仍保持关闭。 |
+| 候选生成 | 开启后，普通单码路径保留精确候选原序，再追加编码严格更长且以当前编码开头的主码表候选。 |
+| 排序与过滤 | 追加候选按权重降序、原码表顺序升序；同词保留最优编码，过滤已软删条目，并按每页候选数限量。 |
+| 候选交互 | 补全候选保留完整编码；整句候选状态下按数字选择显示项时，可直接提交对应的长码补全候选。 |
+| 简繁与 Emoji | 只对新增补全候选执行 OpenCC / Emoji 处理，避免重复处理已有精确候选。 |
+| 设置页 | 在当前 React 设置页和旧版设置页增加“前缀补全”开关，并加入设置搜索。 |
+| 验证 | 增加配置兼容、排序、去重、软删过滤、限量、开关切换和数字选择等回归测试。 |
 
-虎符（HuFu）是一款以 **虎码** 为主码的跨平台中文输入法，名字取自古代调兵信物「虎符」。目标是在 **虎爪输入法（TigerClaw）** 与 **Rime（虎码配置）** 的基础上，做成「统一 Rust 引擎 + 多平台前端 + 图形化设置」的产品级输入法。
+没有重写上游的输入法前端、皮肤、云同步或整句模型；关闭“前缀补全”后，候选行为与上游基线一致。
 
-## 平台状态
+## 前缀补全怎么用
 
-| 平台 | 状态 | 说明 |
-| :--- | :--- | :--- |
-| Windows 10/11 | ✅ 稳定 | TSF 前端；exe 安装包，已在实机验证 |
-| Linux（fcitx5） | ✅ 可用 | 由社区协作者维护；安装见 [`platform/linux`](platform/linux/README.md) |
-| macOS | 🚧 开发中 | IMK 骨架已落地，待 Mac 实机迭代；预计 11 月 20 日前后上线，暂无安装包 |
+1. 编译或安装包含本仓库改动的版本。
+2. 打开设置页，进入“输入 → 编码”，开启“前缀补全”。
+3. 输入短码后，精确候选仍排在最前，其后出现同前缀的长码候选。
 
-## 界面预览
+例如使用 Wubi86 码表输入 `tj` 时，精确候选“得”保持在首位，后续可出现“利于”“篮球”“复核”“得分”等 `tj` 开头编码的候选。实际顺序取决于当前码表的权重和原始顺序；候选注释保留 `tjgf`、`tjsy` 这样的完整编码。
 
-<p align="center">
-  <img src="docs/design/04-overview-light.png" width="49%" alt="设置页 · 概览（浅色）">
-  <img src="docs/design/02-skin-dark.png" width="49%" alt="设置页 · 皮肤工作室（深色）">
-</p>
+配置文件对应字段：
 
-<p align="center"><sub>设置页 · 概览（浅色）与皮肤工作室（深色）</sub></p>
-
-## 主要功能
-
-- **虎码整句，越打越顺**：ngram 组句 + Qwen3 神经重排；整句 / 字词 / 单字多方案，权重可调。
-- **一个引擎，三端同源**：Windows TSF / Linux fcitx5 / macOS IMK（开发中），共用码表、用户词与配置。
-- **码表和方案随装随用**：HuFu 原生 / Rime / 多多 / QQ五笔 / 虎整句；方案即目录，一键切换，每方案独立用户词。
-- **候选和符号顺手**：数字 / 分号 / 引号选重、翻页、横竖排、调序 / 置顶 / 软删、滚轮缩放、拖动移位；快符、分类符号、日期变量、`\calc`、`\w`。
-- **皮肤和设置好看好用**：JSON 皮肤 + `.ssf`（搜狗主流格式）+ 毛玻璃材质；本地 Web UI 全图形化，不碰 yaml/lua。
-- **数据在自己手里**：用户词 / 调整日志 / 快照导出；WebDAV 云同步（坚果云等），口令加密 + 回收站。
-
-还有 OpenCC 简繁 / emoji、拼音 / 拆分 / 双拼反查、4 类按键音等细节，见 [docs/features.md](docs/features.md)。
-
-## 快速开始
-
-### Windows 10/11
-
-1. 打开 [Releases](https://github.com/LeafHW/hufu-ime-rust/releases/latest)，下载 `HuFuSetup-<version>.exe`（约 25 MB）。
-2. 双击安装。旧版会自动原地升级，码表、设置与学习记录全部保留。
-3. 新开一个应用，按 `Win+空格` 切到「虎符」；`Ctrl+Alt+H` 打开设置。
-
-- **绿色版**：下载 `HuFu-v<version>-no-model.zip`（约 29 MB），解压后运行 `安装.bat`。
-- **整句模型**（约 525 MB）在 [ModelScope](https://www.modelscope.cn/models/leafyin/hufu-ime) 单独下载（国内直连、免登录；[GitHub 发布页](https://github.com/LeafHW/hufu-ime-rust/releases/tag/%E6%A8%A1%E5%9E%8B)保留为备用）；解压后把「模型」文件夹放到安装目录，约 2 秒自动装载，无需重启。
-- **管理员权限应用**（如以管理员运行的终端/编辑器）：出于安全考虑，提权进程里的输入法不会自动拉起候选服务；若候选不出现，先在普通应用里打一次字（让 `hufu-server.exe` 起来），再切回管理员应用即可。
-
-### Linux（fcitx5）
-
-```sh
-platform/linux/install.sh -umt  # 用户级 一键全量安装
-fcitx5 -r -d       # 重启 fcitx5（或以发行版的方式）
-fcitx5-configtool  # 手动添加「虎符」（或以发行版的方式）
+```json
+{
+  "input": {
+    "prefix_completion": true
+  },
+  "candidates": {
+    "page_size": 8
+  }
+}
 ```
 
-- 默认数据 **随仓库自带**（`assets/`）
-- 模型与主题不随 `-s/-u` 安装，分别用 `-m`、`-t` 显式独立安装
-- 设置页在应用菜单「虎符设置」或 `http://127.0.0.1:4390/`
+补全只使用主码表，不把用户词、个人存储表中的长码混入短码候选；反查、快符、通配符、反引号超集以及整句锁 / 超长码接管路径不启用该功能。
 
-Linux 详见 [platform/linux/README.md](platform/linux/README.md)
+## 构建与使用
 
-### macOS
+- 本仓库不提供独立安装包、整句模型或个人 Wubi86 码表。
+- 源码构建和 Windows 注册见 [`docs/build.md`](docs/build.md)。
+- 完整功能说明见 [`docs/features.md`](docs/features.md)。
+- 上游的安装包、模型与通用使用说明请访问[原项目](https://github.com/LeafHW/hufu-ime-rust)。
 
-macOS 版正在开发中（预计 11 月 20 日前后上线），暂无安装包。IMK 前端骨架、构建方式与当前限制见
-[platform/macos/README.md](platform/macos/README.md)；欢迎 Mac 开发者参与。
+## 与上游的关系
 
-从源码构建、Windows 系统注册与注意事项详见 [docs/build.md](docs/build.md)；
-当前进度与测试基准详见 [docs/status.md](docs/status.md)。
+- 上游项目：<https://github.com/LeafHW/hufu-ime-rust>
+- 本仓库基线：`v1.9.9.9`
+- 本地 Git 已配置 `upstream` 指向上游项目，便于后续同步。
+- 上游共有功能的问题、构建方式和平台支持，优先参考上游文档；本仓库的改动说明以本 README 为准。
 
-## 文档索引
+当前仓库是独立衍生仓库，GitHub 页面不会显示 `Forked from` 的 Fork 关系；上游来源通过这里的链接和 `upstream` 远程明确保留。
 
-| 文档 | 内容 |
-| --- | --- |
-| [features.md](docs/features.md) | 功能总览明细 |
-| [architecture.md](docs/architecture.md) | 架构设计与数据流 |
-| [build.md](docs/build.md) | 源码构建与系统注册 |
-| [status.md](docs/status.md) | 当前进度与测试基准 |
-| [dictionary-formats.md](docs/dictionary-formats.md) | 码表格式规范（含 TCSKNM02 模型布局） |
-| [asset-sources.md](docs/asset-sources.md) | 资源来源、版本与许可 |
-| [research/ime-frontends.md](docs/research/ime-frontends.md) | TSF / IMK 前端研究纪要 |
-| [benchmark-latency-100.md](docs/benchmark-latency-100.md) · [benchmark-qwen-vs-ngram.md](docs/benchmark-qwen-vs-ngram.md) | 基准报告 |
-| [platform/windows/install/README.md](platform/windows/install/README.md) | Windows 安装与系统注册 |
-| [platform/macos/README.md](platform/macos/README.md) | macOS IMK 前端（开发中） |
-| [platform/linux/README.md](platform/linux/README.md) | Linux 前端：简介 / 功能 / 安装卸载 / 作者声明 |
+## 许可与致谢
 
-## 参与贡献
+本项目沿用上游的 [GPL-3.0-or-later](LICENSE) 许可。输入法主体功能、前端、资源与基础设施均来自上游项目，本仓库的五笔适配改动不改变其原始版权与许可。
 
-- **Windows / 引擎 / 设置页**：欢迎 issue 与 PR。
-- **Linux（fcitx5）**：由社区协作者维护，相关改动请先阅读 [platform/linux/README.md](platform/linux/README.md)。
-- **macOS**：正在开发中，IMK 骨架位于 [platform/macos](platform/macos/README.md)，欢迎 Mac 开发者参与。
-
-提交前请尽量说明复现步骤、系统版本与相关日志；涉及发行 / 打包的改动请先看 [docs/build.md](docs/build.md)。
-
-## 版权声明
-
-- 本项目代码以 [GPL-3.0-or-later](LICENSE) 发布（GPL-3.0 或更高版本）
-- 随发行包分发的第三方组件保留其原始许可证：Qwen3 模型（Apache-2.0）、
-  llama.cpp（MIT）、OpenCC 词典数据（Apache-2.0）
-- 随仓库分发的码表与输入法资源来自：虎码官方发布（<https://huma.ysepan.com>）、
-  虎爪输入法 TigerClaw（<https://github.com/lvyww/tigerclaw>，GPL-3.0）；
-  随本仓库分发并保留原项目声明，逐文件来源详见
-  [docs/asset-sources.md](docs/asset-sources.md)
-
-## 致谢
-
-- **虎爪输入法 TigerClaw**：整句模型、音效与交互设计的重要参考
-- **Rime / 虎码配置**：码表生态与配置思路的来源之一
-- **虎码官方**：码表与输入法资源
-- **Linux fcitx5 前端协作者** 与所有 issue / PR 贡献者
+感谢 [LeafHW/hufu-ime-rust](https://github.com/LeafHW/hufu-ime-rust) 项目及所有上游贡献者。
