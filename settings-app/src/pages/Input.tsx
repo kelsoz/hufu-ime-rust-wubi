@@ -61,6 +61,7 @@ interface InputDraft {
     second_select: string;
     third_select: string;
     show_pinyin_comment: boolean;
+    show_code_comment: boolean;
     show_unicode_comment: boolean;
     show_split: boolean;
     split_scheme: string;
@@ -157,6 +158,7 @@ function normalize(cfg: Config): InputDraft {
       second_select: str(c.second_select, ';'),
       third_select: str(c.third_select, "'"),
       show_pinyin_comment: bool(c.show_pinyin_comment, false),
+      show_code_comment: bool(c.show_code_comment, false),
       show_unicode_comment: bool(c.show_unicode_comment, false),
       show_split: bool(c.show_split, false),
       split_scheme: str(c.split_scheme, '虎码'),
@@ -554,6 +556,22 @@ export function InputPage({ data, notify }: { data: Bootstrap; notify: (msg: str
       ...prev,
       [section]: { ...(prev[section] as unknown as Dict), [key]: value },
     }) as InputDraft);
+  };
+
+  const commentMode = draft.candidates.show_pinyin_comment
+    ? 'pinyin'
+    : draft.candidates.show_code_comment
+      ? 'code'
+      : 'off';
+  const setCommentMode = (mode: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      candidates: {
+        ...prev.candidates,
+        show_pinyin_comment: mode === 'pinyin',
+        show_code_comment: mode === 'code',
+      },
+    }));
   };
 
   const discard = () => {
@@ -1135,7 +1153,7 @@ export function InputPage({ data, notify }: { data: Bootstrap; notify: (msg: str
                   onBlur={() => patch('candidates', 'delay_show_ms', clampInt(draft.candidates.delay_show_ms, 0, 2000))}
                 />
               </Field>
-              <Field label="注释延时（毫秒）" hint="延时展开拼音/拆分注释。">
+              <Field label="注释延时（毫秒）" hint="延时展开拼音/编码/拆分注释。">
                 <input
                   className="ip-input num"
                   type="number"
@@ -1150,12 +1168,20 @@ export function InputPage({ data, notify }: { data: Bootstrap; notify: (msg: str
             </div>
 
             <div style={{ marginTop: 8 }}>
-              <ToggleRow
-                label="显示拼音注释"
-                hint="数据\注释\拼音.注释；整句方案下暂不生效。"
-                on={draft.candidates.show_pinyin_comment}
-                onChange={(v) => patch('candidates', 'show_pinyin_comment', v)}
-              />
+              <Row
+                label="候选注释"
+                hint="拼音与五笔编码二选一；五笔显示完整编码，整句方案下暂不生效。"
+              >
+                <Seg
+                  value={commentMode}
+                  onChange={setCommentMode}
+                  options={[
+                    { v: 'off', l: '关闭' },
+                    { v: 'pinyin', l: '拼音' },
+                    { v: 'code', l: '五笔' },
+                  ]}
+                />
+              </Row>
               <ToggleRow
                 label="显示 unicode 注释"
                 hint="数据\注释\unicode.注释；整句方案下暂不生效。"

@@ -304,6 +304,8 @@ pub struct CandidatesSection {
     pub show_index: bool,
     /// 显示拼音注释（数据\注释\拼音.注释；无表时回退反查表 词→码）
     pub show_pinyin_comment: bool,
+    /// 显示当前候选编码（与拼音注释互斥，适合五笔等形码方案）
+    pub show_code_comment: bool,
     /// 显示 unicode 注释（数据\注释\unicode.注释，如 [平假名]）
     pub show_unicode_comment: bool,
     /// 显示拆分
@@ -358,6 +360,7 @@ impl Default for CandidatesSection {
             // 【2026-09-07 用户拍板】拼音注释默认关（此前默认开，用户
             // 反馈默认关）；unicode/拆分维持默认关。
             show_pinyin_comment: false,
+            show_code_comment: false,
             show_unicode_comment: false,
             show_split: false,
             split_scheme: "虎码".into(),
@@ -933,6 +936,23 @@ mod tests {
         let enabled: Config =
             serde_json::from_str(r#"{ "input": { "prefix_completion": true } }"#).unwrap();
         assert!(enabled.input.prefix_completion);
+    }
+
+    #[test]
+    fn candidate_comment_mode_defaults_and_legacy_load() {
+        let config = Config::default();
+        assert!(!config.candidates.show_pinyin_comment);
+        assert!(!config.candidates.show_code_comment);
+
+        let legacy: Config =
+            serde_json::from_str(r#"{ "candidates": { "show_pinyin_comment": true } }"#).unwrap();
+        assert!(legacy.candidates.show_pinyin_comment);
+        assert!(!legacy.candidates.show_code_comment);
+
+        let code: Config =
+            serde_json::from_str(r#"{ "candidates": { "show_code_comment": true } }"#).unwrap();
+        assert!(!code.candidates.show_pinyin_comment);
+        assert!(code.candidates.show_code_comment);
     }
 
     /// 【重复上屏包括符号 2026-11】开关序列化往返 + 旧配置缺键取默认关。

@@ -6151,34 +6151,25 @@ impl Engine {
         c.weight = e.weight;
         c.pinned = e.pinned;
         c.commit_override = e.commit_override.clone();
-        c.comment = self.annotate(&e.text);
+        c.comment = self.annotate(&e.text, &e.code);
         c
     }
 
-    /// 注释：拆分 / 拼音 / Unicode 分区（按配置与可用性）。
-    pub fn annotate(&self, word: &str) -> String {
-        // 【注释口径 2026-10-09 四】①整句模式开启=注释全关（设置页早已
-        // 标注「不可用」，引擎补齐真语义——组句流候选不带任何注释，原
-        // 整句下码表域兜底项仍挂注释的漏口堵上）；②仅单字显示（词不
-        // 显示——拆分/拼音/Unicode 一律免，多音拼音串冗长无意义）。
+    /// 注释：拆分 / 拼音或编码 / Unicode 分区（按配置与可用性）。
+    pub fn annotate(&self, word: &str, code: &str) -> String {
+        // 整句模式关闭全部注释；编码可显示完整词码，其余注释仅用于单字。
         if self.sentence_active() {
             return String::new();
         }
-        if word.chars().count() != 1 {
+        let single_char = word.chars().count() == 1;
+        if !single_char && !self.config.candidates.show_code_comment {
             return String::new();
         }
         let mut parts: Vec<String> = Vec::new();
-        // 【2026-09-05 修复】拆分/注释原为 else-if 互斥——开拆分时注释
-        // 被短路（用户实测「显示注释不生效」）。两开关独立生效：
-        // 拆分（部件提示）与拼音注释可同显，均受各自开关控制。
-        if self.config.candidates.show_split {
+        if single_char && self.config.candidates.show_split {
             if let Some(sp) = &self.schema.split {
                 let s = sp.annotate_word(word, 2);
                 if !s.is_empty() {
-                    // 【拆分截断 2026-10-09 四】最多 4 部件：前 3 顺笔 +
-                    // 末 1（末笔）——生僻大字（𰻝 全 11 部件「穴言幺幺马
-                    // 长长月刂心辶」）只显「穴言幺辶」，编码提示够了，
-                    // 全串反而淹没候选窗。
                     let cs: Vec<char> =
                         s.chars().filter(|c| !c.is_whitespace()).collect();
                     let s = if cs.len() > 4 {
@@ -6193,33 +6184,33 @@ impl Engine {
             }
         }
         if self.config.candidates.show_pinyin_comment {
-            if let Some(py) = &self.schema.pinyin {
-                let s = py.annotate_word(word, 2);
-                if !s.is_empty() {
-                    parts.push(s);
-                }
-            } else if let Some(rev) = &self.schema.reverse {
-                // 【2026-09-05】无拼音注释表时回退反查表（词→码）——
-                // Bime 反查表数据已有，「显示拼音注释」开箱即用（整词
-                // 优先，miss 则前 2 字逐字拼）。
-                let s = rev
-                    .code_of(word)
-                    .map(|c| c.to_string())
-                    .unwrap_or_else(|| {
-                        word.chars()
-                            .take(2)
-                            .filter_map(|ch| rev.code_of(&ch.to_string()))
-                            .collect::<Vec<_>>()
-                            .join(" ")
-                    });
-                if !s.is_empty() {
-                    parts.push(s);
+            if single_char {
+                if let Some(py) = &self.schema.pinyin {
+                    let s = py.annotate_word(word, 2);
+                    if !s.is_empty() {
+                        parts.push(s);
+                    }
+                } else if let Some(rev) = &self.schema.reverse {
+                    // 无拼音注释表时回退反查表（词→码）。
+                    let s = rev
+                        .code_of(word)
+                        .map(|c| c.to_string())
+                        .unwrap_or_else(|| {
+                            word.chars()
+                                .take(2)
+                                .filter_map(|ch| rev.code_of(&ch.to_string()))
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                        });
+                    if !s.is_empty() {
+                        parts.push(s);
+                    }
                 }
             }
+        } else if self.config.candidates.show_code_comment && !code.is_empty() {
+            parts.push(code.to_string());
         }
-        // 【2026-09-06】unicode 注释独立开关（数据\注释\unicode.注释；
-        // 非「基本」字显示分区名，如 [平假名]）
-        if self.config.candidates.show_unicode_comment {
+        if single_char && self.config.candidates.show_unicode_comment {
             if let Some(uni) = &self.schema.unicode_block {
                 if let Some(fc) = word.chars().next() {
                     if let Some(u) = uni.get(fc) {

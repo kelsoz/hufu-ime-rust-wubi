@@ -48,6 +48,66 @@ fn setup() -> (Engine, Session, std::path::PathBuf) {
 }
 
 #[test]
+fn candidate_comments_select_pinyin_or_full_code() {
+    static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let dir = std::env::temp_dir().join(format!("hufu-comment-engine-{}-{n}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let dict_dir = dir.join("码表").join("五笔");
+    std::fs::create_dir_all(&dict_dir).unwrap();
+    std::fs::create_dir_all(dir.join("注释")).unwrap();
+    std::fs::write(
+        dict_dir.join("main.txt"),
+        "#hufu-dict v1 name=wubi\n\
+         tj\t得\t100\n\
+         tjtu\t复\t90\n\
+         tjsy\t复核\t80\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("注释/拼音.注释"), "得\tde\n复\tfu\n").unwrap();
+
+    let mut config = Config::default();
+    config.schema.current = "五笔".into();
+    let mut engine = Engine::new(&dir, config).unwrap();
+    let mut session = Session::new(true);
+    fn comment_for(engine: &mut Engine, session: &mut Session, code: &str, text: &str) -> String {
+        session.clear();
+        for ch in code.chars() {
+            engine.process_key(session, key(ch));
+        }
+        session
+            .candidates
+            .iter()
+            .find(|candidate| candidate.text == text)
+            .unwrap()
+            .comment
+            .clone()
+    }
+
+    assert_eq!(comment_for(&mut engine, &mut session, "tj", "得"), "");
+    engine.config.candidates.show_pinyin_comment = true;
+    assert_eq!(comment_for(&mut engine, &mut session, "tj", "得"), "de");
+    assert_eq!(comment_for(&mut engine, &mut session, "tjsy", "复核"), "");
+
+    engine.config.candidates.show_pinyin_comment = false;
+    engine.config.candidates.show_code_comment = true;
+    assert_eq!(comment_for(&mut engine, &mut session, "tj", "得"), "tj");
+    assert_eq!(comment_for(&mut engine, &mut session, "tjsy", "复核"), "tjsy");
+
+    engine.config.candidates.show_pinyin_comment = true;
+    assert_eq!(comment_for(&mut engine, &mut session, "tj", "得"), "de");
+    assert_eq!(engine.annotate("复核", "tjsy"), "");
+
+    engine.config.sentence.enabled = true;
+    engine.config.sentence.auto_enable = false;
+    engine.set_sentence_decoder(Some(Arc::new(MockDecoder)));
+    assert_eq!(engine.annotate("复", "tjtu"), "");
+
+    drop(engine);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn prefix_completion_toggle_preserves_exact_order_and_full_codes() {
     let dir = std::env::temp_dir().join(format!("hufu-prefix-engine-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
